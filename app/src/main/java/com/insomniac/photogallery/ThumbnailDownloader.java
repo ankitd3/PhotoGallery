@@ -21,9 +21,10 @@ public class ThumbnailDownloader<Q> extends HandlerThread{
     private static final int MESSAGE_DOWNLOAD = 1;
     private Handler mResponseHandler;
     private ThumbnailDownloaderListener<Q> mThumbnailDownloaderListener;
+    private static String urlString;
 
     public interface ThumbnailDownloaderListener<Q>{
-        void onThumbnailDownloaded(Q target,Bitmap thumbnail);
+        void onThumbnailDownloaded(Q target,Bitmap thumbnail,String urlString);
     }
 
     public void setThumbnailDownloaderListener(ThumbnailDownloaderListener<Q> listener){
@@ -49,6 +50,8 @@ public class ThumbnailDownloader<Q> extends HandlerThread{
 
     public void queueThumbnail(Q target,String url){
         Log.i(TAG,"Got a URL" + url);
+
+        urlString = url;
 
         if(url == null)
             mRequestMap.remove(target);
@@ -90,7 +93,7 @@ public class ThumbnailDownloader<Q> extends HandlerThread{
                     }
 
                     mRequestMap.remove(target);
-                    mThumbnailDownloaderListener.onThumbnailDownloaded(target,bitmap);
+                    mThumbnailDownloaderListener.onThumbnailDownloaded(target,bitmap,urlString);
                 }
             });
 

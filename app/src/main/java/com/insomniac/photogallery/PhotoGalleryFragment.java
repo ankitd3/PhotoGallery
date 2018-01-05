@@ -11,6 +11,7 @@ import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.LruCache;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,6 +21,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,6 +37,8 @@ public class PhotoGalleryFragment extends Fragment {
     private int mCurrentPage = 0;
     private PhotoAdapter mPhotoAdapter;
     private ThumbnailDownloader<PhotoHolder> mPhotoHolderThumbnailDownloader;
+    private LruCache<String,Bitmap> mPhotoHolderBitmapLruCache;
+
 
     public static Fragment newInstance() {
         return new PhotoGalleryFragment();
@@ -46,13 +50,21 @@ public class PhotoGalleryFragment extends Fragment {
         new FetchItemTask().execute();
         setRetainInstance(true);
 
+        final int cacheSize = (1440 * 2660 * 4);
+        mPhotoHolderBitmapLruCache = new LruCache<String, Bitmap>(cacheSize) {
+            @Override
+            protected int sizeOf(String key, Bitmap bitmap) {
+                return bitmap.getByteCount() / 1024;
+            }
+        };
+
         Handler responseHandler = new Handler();
         mPhotoHolderThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
         mPhotoHolderThumbnailDownloader.setThumbnailDownloaderListener(new ThumbnailDownloader.ThumbnailDownloaderListener<PhotoHolder>() {
             @Override
-            public void onThumbnailDownloaded(PhotoHolder target, Bitmap thumbnail) {
-                Drawable drawable = new BitmapDrawable(getResources(),thumbnail);
-                target.bindDrawable(drawable);
+            public void onThumbnailDownloaded(PhotoHolder target, Bitmap thumbnail,String url) {
+                addBitmapToMemoryCache(url,thumbnail);
+                loadBitmap(target,thumbnail);
             }
         });
 
@@ -97,13 +109,13 @@ public class PhotoGalleryFragment extends Fragment {
     private static final int sColumnWidth = 120;
 
     public void calculateCellSize(){
-        Toast.makeText(getContext(),"calculateCellSize",Toast.LENGTH_SHORT).show();
+        //Toast.makeText(getContext(),"calculateCellSize",Toast.LENGTH_SHORT).show();
         int spanCount = (int) Math.ceil(mPhotoRecyclerView.getWidth()/convertDPtoPixels(sColumnWidth));
         ((GridLayoutManager)mPhotoRecyclerView.getLayoutManager()).setSpanCount(spanCount);
     }
 
     private float convertDPtoPixels(int sColumnWidth){
-        Toast.makeText(getContext(),"convertDPtoPixels",Toast.LENGTH_SHORT).show();
+        //Toast.makeText(getContext(),"convertDPtoPixels",Toast.LENGTH_SHORT).show();
         DisplayMetrics displayMetrics = new DisplayMetrics();
         getActivity().getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
         float logicalDensity = displayMetrics.density;
@@ -175,7 +187,11 @@ public class PhotoGalleryFragment extends Fragment {
             GalleryItem galleryItem = mGalleryItems.get(position);
             Drawable placeHolder = getResources().getDrawable(R.drawable.place_holder);
             holder.bindDrawable(placeHolder);
-            mPhotoHolderThumbnailDownloader.queueThumbnail(holder,galleryItem.getUrl());
+            Bitmap bitmap = getBitmapFromMemoryCache(galleryItem.getUrl());
+            if(bitmap == null)
+                mPhotoHolderThumbnailDownloader.queueThumbnail(holder,galleryItem.getUrl());
+            else
+                loadBitmap(holder,bitmap);
         }
 
         @Override
@@ -206,5 +222,20 @@ public class PhotoGalleryFragment extends Fragment {
         mPhotoHolderThumbnailDownloader.quit();
         Toast.makeText(getContext(),"Background thrad stopped ",Toast.LENGTH_SHORT).show();
         Log.i(TAG,"Background THread stopeed ");
+    }
+
+    public void addBitmapToMemoryCache(String url,Bitmap bitmap){
+        if(getBitmapFromMemoryCache(url) == null)
+            mPhotoHolderBitmapLruCache.put(url,bitmap);
+    }
+
+    public Bitmap getBitmapFromMemoryCache(String url){
+        return mPhotoHolderBitmapLruCache.get(url);
+    }
+
+    public void loadBitmap(PhotoHolder photoHolder,Bitmap bitmap){
+        Toast.makeText(getContext(),"cool",Toast.LENGTH_SHORT);
+        Drawable drawable = new BitmapDrawable(getResources(),bitmap);
+        photoHolder.bindDrawable(drawable);
     }
 }
