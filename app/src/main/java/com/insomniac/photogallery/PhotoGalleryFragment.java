@@ -1,22 +1,31 @@
 package com.insomniac.photogallery;
 
+import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.hardware.input.InputManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.app.Fragment;
+import android.support.v4.view.MenuItemCompat;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.LruCache;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageView;
+import android.support.v7.widget.SearchView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,6 +47,8 @@ public class PhotoGalleryFragment extends Fragment {
     private PhotoAdapter mPhotoAdapter;
     private ThumbnailDownloader<PhotoHolder> mPhotoHolderThumbnailDownloader;
     private LruCache<String,Bitmap> mPhotoHolderBitmapLruCache;
+    private ProgressBar mProgressBar;
+    private Handler mMainHandler;
 
 
     public static Fragment newInstance() {
@@ -47,10 +58,11 @@ public class PhotoGalleryFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        new FetchItemTask().execute();
+        updateItems();
         setRetainInstance(true);
+        setHasOptionsMenu(true);
 
-        final int cacheSize = (1440 * 2660 * 4);
+        final int cacheSize = 1000;
         mPhotoHolderBitmapLruCache = new LruCache<String, Bitmap>(cacheSize) {
             @Override
             protected int sizeOf(String key, Bitmap bitmap) {
@@ -58,8 +70,8 @@ public class PhotoGalleryFragment extends Fragment {
             }
         };
 
-        Handler responseHandler = new Handler();
-        mPhotoHolderThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
+        mMainHandler = new Handler();
+        mPhotoHolderThumbnailDownloader = new ThumbnailDownloader<>(mMainHandler);
         mPhotoHolderThumbnailDownloader.setThumbnailDownloaderListener(new ThumbnailDownloader.ThumbnailDownloaderListener<PhotoHolder>() {
             @Override
             public void onThumbnailDownloaded(PhotoHolder target, Bitmap thumbnail,String url) {
@@ -80,6 +92,7 @@ public class PhotoGalleryFragment extends Fragment {
         View view = layoutInflater.inflate(R.layout.fragment_photo_gallery, container, false);
         mPhotoRecyclerView = (RecyclerView) view.findViewById(R.id.fragment_photo_gallery_recycler_view);
         mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 3));
+        mProgressBar = (ProgressBar) view.findViewById(R.id.progressBar);
 
         setUpAdapter();
         mPhotoRecyclerView.setAdapter(mPhotoAdapter);
@@ -106,26 +119,64 @@ public class PhotoGalleryFragment extends Fragment {
         return view;
     }
 
-    private static final int sColumnWidth = 120;
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater menuInflater){
+        super.onCreateOptionsMenu(menu,menuInflater);
+        menuInflater.inflate(R.menu.fragment_photo_gallery,menu);
 
-    public void calculateCellSize(){
-        //Toast.makeText(getContext(),"calculateCellSize",Toast.LENGTH_SHORT).show();
-        int spanCount = (int) Math.ceil(mPhotoRecyclerView.getWidth()/convertDPtoPixels(sColumnWidth));
-        ((GridLayoutManager)mPhotoRecyclerView.getLayoutManager()).setSpanCount(spanCount);
+        final MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+        final SearchView searchView = (SearchView) searchItem.getActionView();
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String s) {
+                Log.d(TAG,"Query submitted" + s);
+                if(s.equals(""))
+                    submitQuery(null);
+                else
+                    submitQuery(s);
+                searchItem.collapseActionView();
+                searchView.clearFocus();
+                InputMethodManager inputMethodManager = (InputMethodManager) getActivity().getSystemService(Activity.INPUT_METHOD_SERVICE);
+                inputMethodManager.hideSoftInputFromWindow(searchView.getWindowToken(),0);
+                showProgressBar();
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String s) {
+                Log.d(TAG,"QueryTextSubmit : " + s);
+                return false;
+            }
+        });
+
+        searchView.setOnSearchClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String query = QueryPreferences.getStoredQuery(getContext());
+                searchView.setQuery(query,false);
+            }
+        });
     }
 
-    private float convertDPtoPixels(int sColumnWidth){
-        //Toast.makeText(getContext(),"convertDPtoPixels",Toast.LENGTH_SHORT).show();
-        DisplayMetrics displayMetrics = new DisplayMetrics();
-        getActivity().getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
-        float logicalDensity = displayMetrics.density;
-        return sColumnWidth * logicalDensity;
+    @Override
+    public boolean onOptionsItemSelected(MenuItem menuItem){
+        switch (menuItem.getItemId()){
+            case R.id.menu_item_clear : QueryPreferences.setStoredQuery(getContext(),null);
+                                            submitQuery(null);
+                                            Toast.makeText(getActivity(),"clear",Toast.LENGTH_SHORT).show();
+                                            return true;
+            default : return super.onOptionsItemSelected(menuItem);
+        }
     }
 
     public void updateItems() {
+        String query = QueryPreferences.getStoredQuery(getContext());
         Toast.makeText(getContext(),"Exec" + mCurrentPage,Toast.LENGTH_SHORT).show();
-        new FetchItemTask().execute(mCurrentPage);
+        new FetchItemTask(query).execute(Integer.valueOf(mCurrentPage));
     }
+
+
 
     private void setUpAdapter() {
         if (isAdded())
@@ -133,23 +184,32 @@ public class PhotoGalleryFragment extends Fragment {
                 mPhotoAdapter = new PhotoAdapter(mItems);
             else {
                 Toast.makeText(getContext(),"onScroll" + mCurrentPage,Toast.LENGTH_SHORT).show();
-                mPhotoAdapter.notifyDataSetChanged();
+                mPhotoAdapter.setItems(mItems);
             }
     }
 
     private class FetchItemTask extends AsyncTask<Integer, Void, List<GalleryItem>> {
 
+        String mQuery;
+
+        public FetchItemTask(String query){
+            mQuery = query;
+        }
+
         @Override
         protected List<GalleryItem> doInBackground(Integer... params) {
-            if (mCurrentPage == 0)
-                return new FlickrFetchr().fetchItems();
-            return new FlickrFetchr().fetchItems(params[0]);
+            //String query = "cat";
+            if(mQuery == null)
+                return new FlickrFetchr().fetchRecentPhotos(params[0]);
+            else
+                return new FlickrFetchr().searchPhotos(mQuery,params[0]);
         }
 
         @Override
         public void onPostExecute(List<GalleryItem> items) {
             mItems.addAll(items);
             Log.d(TAG, "onPostExecute");
+            hideProgressBar();
             setUpAdapter();
         }
     }
@@ -198,6 +258,11 @@ public class PhotoGalleryFragment extends Fragment {
         public int getItemCount() {
             return mGalleryItems.size();
         }
+
+        public void setItems(List<GalleryItem> galleryItems){
+            mGalleryItems = galleryItems;
+            notifyDataSetChanged();
+        }
     }
 
     public boolean isLastItemDisplaying(){
@@ -237,5 +302,49 @@ public class PhotoGalleryFragment extends Fragment {
         Toast.makeText(getContext(),"cool",Toast.LENGTH_SHORT);
         Drawable drawable = new BitmapDrawable(getResources(),bitmap);
         photoHolder.bindDrawable(drawable);
+    }
+
+    public void submitQuery(String query){
+        QueryPreferences.setStoredQuery(getActivity(),query);
+        mCurrentPage = 0;
+        mItems = new ArrayList<>();
+        mPhotoAdapter.setItems(mItems);
+        updateItems();
+    }
+
+    private static final int sColumnWidth = 120;
+
+    public void calculateCellSize(){
+        //Toast.makeText(getContext(),"calculateCellSize",Toast.LENGTH_SHORT).show();
+        int spanCount = (int) Math.ceil(mPhotoRecyclerView.getWidth()/convertDPtoPixels(sColumnWidth));
+        ((GridLayoutManager)mPhotoRecyclerView.getLayoutManager()).setSpanCount(spanCount);
+    }
+
+    private float convertDPtoPixels(int sColumnWidth){
+        //Toast.makeText(getContext(),"convertDPtoPixels",Toast.LENGTH_SHORT).show();
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        getActivity().getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        float logicalDensity = displayMetrics.density;
+        return sColumnWidth * logicalDensity;
+    }
+
+    public void hideProgressBar(){
+        mMainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if(mProgressBar != null)
+                    mProgressBar.setVisibility(View.GONE);
+            }
+        });
+    }
+
+    public void showProgressBar(){
+        mMainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if(mProgressBar != null)
+                    mProgressBar.setVisibility(View.VISIBLE);
+            }
+        });
     }
 }

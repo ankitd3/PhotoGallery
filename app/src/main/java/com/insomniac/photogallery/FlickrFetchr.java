@@ -34,6 +34,15 @@ public class FlickrFetchr {
 	private static final String API_KEY = "a230a5b562b7b3afb8b1ba3bc6f3bf9e";
 	//private static Context mContext = null;
     private static final String FETCH_RECENT_METHOD = "flickr.photos.getRecent";
+    private static final String SEARCH_METHOD = "flickr.photos.search";
+    private static final Uri ENDPOINT = Uri
+            .parse("https://api.flickr.com/services/rest/")
+            .buildUpon()
+            .appendQueryParameter("api_key",API_KEY)
+            .appendQueryParameter("format","json")
+            .appendQueryParameter("nojsoncallback","1")
+            .appendQueryParameter("extras","url_s")
+            .build();
 
 
     public byte[] getURLBytes(String urlSpec) throws IOException{
@@ -64,17 +73,30 @@ public class FlickrFetchr {
         return new String(getURLBytes(urlSpec));
     }
 
-    public List<GalleryItem> fetchItems(){
+    private String buildUrl(String method,String query,Integer mCurrentPage){
+        Uri.Builder builder = ENDPOINT.buildUpon().appendQueryParameter("method",method).appendQueryParameter("page",Integer.toString(mCurrentPage));
+
+        if(method.equals(SEARCH_METHOD)){
+            builder.appendQueryParameter("text",query);
+        }
+
+        return builder.build().toString();
+    }
+
+    public List<GalleryItem> fetchRecentPhotos(Integer mCurrentPage){
+        String url = buildUrl(FETCH_RECENT_METHOD,null,mCurrentPage);
+        return downloadGalleryItems(url);
+    }
+
+    public List<GalleryItem> searchPhotos(String query,Integer mCurrentPage){
+        String url = buildUrl(SEARCH_METHOD,query,mCurrentPage);
+        return downloadGalleryItems(url);
+    }
+
+    private List<GalleryItem> downloadGalleryItems(String url){
         List<GalleryItem> galleryItems = new ArrayList<>();
         try{
-            String url = Uri.parse("https://api.flickr.com/services/rest/")
-                    .buildUpon()
-                    .appendQueryParameter("method", "flickr.photos.getRecent")
-                    .appendQueryParameter("api_key", API_KEY)
-                    .appendQueryParameter("format", "json")
-                    .appendQueryParameter("nojsoncallback", "1")
-                    .appendQueryParameter("extras", "url_s")
-                    .build().toString();
+
             String jsonString = getUrlString(url);
             //gsonParseItems(galleryItems,jsonString);
             Log.i(TAG,"Received JSON : " + jsonString);
@@ -87,25 +109,6 @@ public class FlickrFetchr {
         }catch (JSONException j){
            // Toast.makeText(mContext,"Failed JSONEXcepption",Toast.LENGTH_SHORT).show();
             Log.e(TAG,"failed to parse JSOn",j);
-        }
-        return galleryItems;
-    }
-
-    public List<GalleryItem> fetchItems(Integer mPage){
-        List<GalleryItem> galleryItems = new ArrayList<>();
-        try{
-            String uri = Uri.parse("https://api.flickr.com/services/rest/").buildUpon().appendQueryParameter("method","flickr.photos.getRescent").appendQueryParameter("api_key",API_KEY).appendQueryParameter("format","json").appendQueryParameter("nojsoncallback","1").appendQueryParameter("extras","url_s").build().buildUpon().appendQueryParameter("method",FETCH_RECENT_METHOD).appendQueryParameter("page",Integer.toString(mPage)).build().toString();
-            String jsonString = getUrlString(uri);
-            Log.i(TAG,"Received JSON : " + jsonString);
-           // Toast.makeText(mContext,"Received JSON recent",Toast.LENGTH_SHORT).show();
-            JSONObject jsonObject = new JSONObject(jsonString);
-            parseItems(galleryItems,jsonObject);
-        }catch (IOException e){
-           // Toast.makeText(mContext,"Failed IOEx recent ",Toast.LENGTH_SHORT).show();
-            Log.e(TAG,"Failed",e);
-        }catch (JSONException e){
-           // Toast.makeText(mContext,"Failed JSONEx",Toast.LENGTH_SHORT).show();
-            Log.e(TAG,"failed to parse JSON",e);
         }
         return galleryItems;
     }
