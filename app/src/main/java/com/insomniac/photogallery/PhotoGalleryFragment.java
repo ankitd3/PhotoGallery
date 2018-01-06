@@ -1,6 +1,7 @@
 package com.insomniac.photogallery;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -83,7 +84,12 @@ public class PhotoGalleryFragment extends Fragment {
         mPhotoHolderThumbnailDownloader.start();
         mPhotoHolderThumbnailDownloader.getLooper();
         Log.i(TAG,"Background thread started");
-        Toast.makeText(getContext(),"Background Thread Started ",Toast.LENGTH_SHORT).show();
+        //Toast.makeText(getContext(),"Background Thread Started ",Toast.LENGTH_SHORT).show();
+
+        /*Intent intent = PollService.newIntent(getActivity());
+        getActivity().startService(intent);*/
+
+       // PollService.setServiceAlarm(getContext(),true);
 
     }
 
@@ -157,6 +163,12 @@ public class PhotoGalleryFragment extends Fragment {
                 searchView.setQuery(query,false);
             }
         });
+
+        MenuItem toggleAlarmItem = menu.findItem(R.id.menu_item_polling);
+        if(PollService.isServiceAlarmOn(getActivity()))
+            toggleAlarmItem.setTitle(R.string.stop_polling);
+        else
+            toggleAlarmItem.setTitle(R.string.start_polling);
     }
 
     @Override
@@ -166,6 +178,10 @@ public class PhotoGalleryFragment extends Fragment {
                                             submitQuery(null);
                                             Toast.makeText(getActivity(),"clear",Toast.LENGTH_SHORT).show();
                                             return true;
+            case R.id.menu_item_polling : boolean shouldStartAlarm = !PollService.isServiceAlarmOn(getActivity());
+                                          PollService.setServiceAlarm(getActivity(),shouldStartAlarm);
+                                          getActivity().invalidateOptionsMenu();
+                                          return  true;
             default : return super.onOptionsItemSelected(menuItem);
         }
     }
@@ -299,7 +315,7 @@ public class PhotoGalleryFragment extends Fragment {
     }
 
     public void loadBitmap(PhotoHolder photoHolder,Bitmap bitmap){
-        Toast.makeText(getContext(),"cool",Toast.LENGTH_SHORT);
+        //Toast.makeText(getContext(),"cool",Toast.LENGTH_SHORT);
         Drawable drawable = new BitmapDrawable(getResources(),bitmap);
         photoHolder.bindDrawable(drawable);
     }
