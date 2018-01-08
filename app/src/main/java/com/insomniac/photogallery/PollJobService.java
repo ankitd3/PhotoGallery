@@ -1,5 +1,6 @@
 package com.insomniac.photogallery;
 
+import android.app.Activity;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.job.JobInfo;
@@ -30,7 +31,11 @@ import static android.content.ContentValues.TAG;
 public class PollJobService extends JobService{
 
     private PollTask mPollTask;
+    public static final String PERM_PRIVATE = "com.insomniac.photogallery.PRIVATE";
    // private Context mContext;
+    public static final String ACTION_SHOW_NOTIFICATION = "com.insomniac.photogallery.SHOW_NOTIFICATION";
+    public static final String REQUEST_CODE = "REQUEST_CODE";
+    public static final String NOTIFICATION = "NOTIFICATION";
 
 
     @Override
@@ -84,11 +89,14 @@ public class PollJobService extends JobService{
                         .setContentIntent(pendingIntent)
                         .setAutoCancel(true)
                         .build();
-                NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(PollJobService.this);
-                notificationManagerCompat.notify(0,notification);
-            }
+               /* NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(PollJobService.this);
+                notificationManagerCompat.notify(0,notification);*/
 
-            jobFinished(jobP,false);
+               showBackgroundNotification(0,notification);
+
+                jobFinished(jobP,false);
+               // sendBroadcast(new Intent(PollJobService.ACTION_SHOW_NOTIFICATION),PERM_PRIVATE);
+            }
 
             QueryPreferences.setLastResultId(PollJobService.this,resultId);
             return null;
@@ -128,5 +136,14 @@ public class PollJobService extends JobService{
             Toast.makeText(context,"isJobOn" + isJobOn,Toast.LENGTH_SHORT).show();
             jobScheduler.cancel(JOB_ID);
         }
+
+        QueryPreferences.setAlarmOn(context,isJobOn);
+    }
+
+    private void showBackgroundNotification(int requestCode,Notification notification){
+        Intent intent = new Intent(PollService.ACTION_SHOW_NOTIFICATION);
+        intent.putExtra(REQUEST_CODE,requestCode);
+        intent.putExtra(NOTIFICATION,notification);
+        sendOrderedBroadcast(intent,PERM_PRIVATE,null,null, Activity.RESULT_OK,null,null);
     }
 }

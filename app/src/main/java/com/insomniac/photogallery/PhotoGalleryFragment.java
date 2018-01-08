@@ -42,7 +42,7 @@ import java.util.List;
  * Created by Sanjeev on 12/22/2017.
  */
 
-public class PhotoGalleryFragment extends Fragment {
+public class PhotoGalleryFragment extends VisibleFragment {
 
     private static final String TAG = "pg";
     private List<GalleryItem> mItems = new ArrayList<>();
@@ -170,17 +170,17 @@ public class PhotoGalleryFragment extends Fragment {
         });
 
         MenuItem toggleAlarmItem = menu.findItem(R.id.menu_item_polling);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
                 if(!PollJobService.isJobSchedule(getContext()))
                     toggleAlarmItem.setTitle(R.string.start_polling);
                 else
                     toggleAlarmItem.setTitle(R.string.stop_polling);
-            }else{
+            }*///else{
                 if(PollService.isServiceAlarmOn(getActivity()))
                     toggleAlarmItem.setTitle(R.string.stop_polling);
                 else
                     toggleAlarmItem.setTitle(R.string.start_polling);
-            }
+           // }
     }
 
     @Override
@@ -190,25 +190,19 @@ public class PhotoGalleryFragment extends Fragment {
                                             submitQuery(null);
                                             Toast.makeText(getActivity(),"clear",Toast.LENGTH_SHORT).show();
                                             return true;
-            case R.id.menu_item_polling :if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            case R.id.menu_item_polling :/*if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
                                                 isJobScheduled = PollJobService.isJobSchedule(getContext());
                                                 PollJobService.getJobScheduler(getActivity(),isJobScheduled);
                                                 Toast.makeText(getContext(),"JobScheduler",Toast.LENGTH_SHORT).show();
-                                          }else{
+                                          }*///else{
                                                  Toast.makeText(getContext(),"AlarmManager",Toast.LENGTH_SHORT).show();
                                                  boolean shouldStartAlarm = !PollService.isServiceAlarmOn(getActivity());
                                                  PollService.setServiceAlarm(getActivity(),shouldStartAlarm);
-                                          }
+                                          //}
                                           getActivity().invalidateOptionsMenu();
                                           return  true;
             default : return super.onOptionsItemSelected(menuItem);
         }
-    }
-
-    public boolean checkSDK(){
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-            return true;
-        return false;
     }
 
     public void updateItems() {
