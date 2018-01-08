@@ -1,14 +1,17 @@
 package com.insomniac.photogallery;
 
 import android.app.Activity;
+import android.app.job.JobInfo;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.hardware.input.InputManager;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.annotation.RequiresApi;
 import android.support.v4.app.Fragment;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.widget.GridLayoutManager;
@@ -50,6 +53,7 @@ public class PhotoGalleryFragment extends Fragment {
     private LruCache<String,Bitmap> mPhotoHolderBitmapLruCache;
     private ProgressBar mProgressBar;
     private Handler mMainHandler;
+    private boolean isJobScheduled;
 
 
     public static Fragment newInstance() {
@@ -77,7 +81,8 @@ public class PhotoGalleryFragment extends Fragment {
             @Override
             public void onThumbnailDownloaded(PhotoHolder target, Bitmap thumbnail,String url) {
                 addBitmapToMemoryCache(url,thumbnail);
-                loadBitmap(target,thumbnail);
+                if(isAdded())
+                    loadBitmap(target,thumbnail);
             }
         });
 
@@ -165,10 +170,17 @@ public class PhotoGalleryFragment extends Fragment {
         });
 
         MenuItem toggleAlarmItem = menu.findItem(R.id.menu_item_polling);
-        if(PollService.isServiceAlarmOn(getActivity()))
-            toggleAlarmItem.setTitle(R.string.stop_polling);
-        else
-            toggleAlarmItem.setTitle(R.string.start_polling);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+                if(!PollJobService.isJobSchedule(getContext()))
+                    toggleAlarmItem.setTitle(R.string.start_polling);
+                else
+                    toggleAlarmItem.setTitle(R.string.stop_polling);
+            }else{
+                if(PollService.isServiceAlarmOn(getActivity()))
+                    toggleAlarmItem.setTitle(R.string.stop_polling);
+                else
+                    toggleAlarmItem.setTitle(R.string.start_polling);
+            }
     }
 
     @Override
@@ -178,12 +190,25 @@ public class PhotoGalleryFragment extends Fragment {
                                             submitQuery(null);
                                             Toast.makeText(getActivity(),"clear",Toast.LENGTH_SHORT).show();
                                             return true;
-            case R.id.menu_item_polling : boolean shouldStartAlarm = !PollService.isServiceAlarmOn(getActivity());
-                                          PollService.setServiceAlarm(getActivity(),shouldStartAlarm);
+            case R.id.menu_item_polling :if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+                                                isJobScheduled = PollJobService.isJobSchedule(getContext());
+                                                PollJobService.getJobScheduler(getActivity(),isJobScheduled);
+                                                Toast.makeText(getContext(),"JobScheduler",Toast.LENGTH_SHORT).show();
+                                          }else{
+                                                 Toast.makeText(getContext(),"AlarmManager",Toast.LENGTH_SHORT).show();
+                                                 boolean shouldStartAlarm = !PollService.isServiceAlarmOn(getActivity());
+                                                 PollService.setServiceAlarm(getActivity(),shouldStartAlarm);
+                                          }
                                           getActivity().invalidateOptionsMenu();
                                           return  true;
             default : return super.onOptionsItemSelected(menuItem);
         }
+    }
+
+    public boolean checkSDK(){
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+            return true;
+        return false;
     }
 
     public void updateItems() {
@@ -199,7 +224,7 @@ public class PhotoGalleryFragment extends Fragment {
             if (mPhotoAdapter == null)
                 mPhotoAdapter = new PhotoAdapter(mItems);
             else {
-                Toast.makeText(getContext(),"onScroll" + mCurrentPage,Toast.LENGTH_SHORT).show();
+                //Toast.makeText(getContext(),"onScroll" + mCurrentPage,Toast.LENGTH_SHORT).show();
                 mPhotoAdapter.setItems(mItems);
             }
     }
@@ -301,8 +326,8 @@ public class PhotoGalleryFragment extends Fragment {
     public void onDestroy(){
         super.onDestroy();
         mPhotoHolderThumbnailDownloader.quit();
-        Toast.makeText(getContext(),"Background thrad stopped ",Toast.LENGTH_SHORT).show();
-        Log.i(TAG,"Background THread stopeed ");
+        //Toast.makeText(getContext(),"Background thrad stopped ",Toast.LENGTH_SHORT).show();
+        //Log.i(TAG,"Background THread stopeed ");
     }
 
     public void addBitmapToMemoryCache(String url,Bitmap bitmap){
