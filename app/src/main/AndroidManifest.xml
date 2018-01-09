@@ -41,6 +41,8 @@
                     android:name="com.insomniac.photogallery.SHOW_NOTIFICATION"/>
             </intent-filter>
         </receiver>
+        <activity android:name=".PhotoPageActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"/>
     </application>
 
 </manifest>

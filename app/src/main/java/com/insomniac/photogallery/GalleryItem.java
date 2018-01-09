@@ -1,10 +1,25 @@
 package com.insomniac.photogallery;
 
 
+import android.net.Uri;
 
 public class GalleryItem {
 
     private String mCaption;
+
+    public String getOwner() {
+        return mOwner;
+    }
+
+    public Uri getPhotoPageUri(){
+        return Uri.parse("http://www.flickr.com/photos/").buildUpon().appendPath(mCaption).appendPath(mId).build();
+    }
+
+    public void setOwner(String owner) {
+        mOwner = owner;
+    }
+
+    private String mOwner;
 
     public String getCaption() {
         return mCaption;

@@ -129,6 +129,7 @@ public class FlickrFetchr {
             }
 
             galleryItem.setUrl(photoJsonObject1.getString("url_s"));
+            galleryItem.setOwner(photoJsonObject1.getString("owner"));
             //Toast.makeText(mContext,"parsed",Toast.LENGTH_SHORT).show();
             galleryItems.add(galleryItem);
 
